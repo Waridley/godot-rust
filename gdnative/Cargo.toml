@@ -13,7 +13,9 @@ edition = "2018"
 
 [features]
 default = ["bindings"]
-formatted = ["gdnative-bindings/formatted", "gdnative-bindings/one_class_one_file"]
+formatted = ["gdnative-bindings/formatted"]
+one_class_one_file = ["gdnative-bindings/one_class_one_file"]
+pretty = ["formatted", "one_class_one_file"]
 
 gd_test = ["gdnative-core/gd_test"]
 type_tag_fallback = ["gdnative-core/type_tag_fallback"]
