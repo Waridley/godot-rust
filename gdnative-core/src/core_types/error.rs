@@ -1,4 +1,6 @@
-use crate::sys;
+use crate::{sys};
+use crate::core_types::{ToVariant, Variant, Dictionary, FromVariantError, FromVariant, VariantType, VariantEnumRepr,};
+use std::convert::TryFrom;
 
 /// Error codes used in various Godot APIs.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -73,6 +75,19 @@ impl GodotError {
     }
 }
 
+impl TryFrom<u32> for GodotError {
+    type Error = FromVariantError;
+    
+     fn try_from(value: u32) -> Result<Self, Self::Error> {
+        unsafe {
+            match Self::result_from_sys(value as sys::godot_error) {
+                Ok(()) => Err(FromVariantError::InvalidNil),
+                Err(e) => Ok(e),
+            }
+        }
+    }
+}
+
 impl std::fmt::Display for GodotError {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -81,3 +96,80 @@ impl std::fmt::Display for GodotError {
 }
 
 impl std::error::Error for GodotError {}
+
+impl ToVariant for GodotError {
+    fn to_variant(&self) -> Variant {
+        let dict = Dictionary::new();
+        dict.insert("Err", (*self) as u64);
+        Variant::from_dictionary(&dict.into_shared())
+    }
+}
+
+impl From<FromVariantError> for GodotError {
+    fn from(e: FromVariantError) -> Self {
+        match e {
+            FromVariantError::Unspecified => GodotError::Failed,
+            FromVariantError::InvalidNil => GodotError::DoesNotExist,
+             _ => GodotError::InvalidData,
+        }
+    }
+}
+
+impl FromVariant for GodotError {
+    fn from_variant(e: &Variant) -> Result<Self, FromVariantError> {
+        let dict = e.try_to_dictionary();
+        match dict {
+            Some(dict) => {
+                if dict.len() == 1 {
+                    let key = dict.keys().get(0);
+                    let key = String::from_variant(&key)
+                        .map_err(
+                            |err| FromVariantError::InvalidEnumRepr {
+                                expected: VariantEnumRepr::ExternallyTagged,
+                                error: Box::new(err),
+                            }
+                        )?;
+                    match key.as_str() {
+                        "Ok" => {
+                            Err(FromVariantError::InvalidEnumVariant {
+                                variant: "Ok",
+                                error: Box::new(FromVariantError::Unspecified),
+                            })
+                        }
+                        "Err" => {
+                            GodotError::try_from(dict.get(key).to_u64() as u32)
+                        }
+                        variant => Err(FromVariantError::UnknownEnumVariant {
+                            variant: variant.to_string(),
+                            expected: &["Ok", "Err"],
+                        }),
+                    }
+                } else {
+                    Err(FromVariantError::InvalidEnumRepr {
+                        expected: VariantEnumRepr::ExternallyTagged,
+                        error: Box::new(FromVariantError::InvalidLength {
+                            expected: 1,
+                            len: dict.len() as usize,
+                        }),
+                    })
+                }
+            },
+            None => {
+                match e.try_to_u64() {
+                    Some(value) => GodotError::try_from(value as u32),
+                    None => Err(FromVariantError::InvalidVariantType {
+                        variant_type: e.get_type(),
+                        expected: VariantType::I64,
+                    }),
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl From<std::option::NoneError> for GodotError {
+    fn from(_: std::option::NoneError) -> Self {
+        GodotError::DoesNotExist
+    }
+}

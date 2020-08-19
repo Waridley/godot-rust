@@ -19,6 +19,7 @@
 //!
 //! [thread-safety]: https://docs.godotengine.org/en/stable/tutorials/threads/thread_safe_apis.html
 
+#![cfg_attr(feature = "nightly", feature(try_trait))]
 #![deny(clippy::missing_inline_in_public_items)]
 #![allow(clippy::transmute_ptr_to_ptr)]
 #![cfg_attr(feature = "gd_test", allow(clippy::blacklisted_name))]
