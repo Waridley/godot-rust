@@ -194,20 +194,26 @@ macro_rules! godot_wrap_method_inner {
                         };
                     )*
 
-                    let __ret = __instance
+                    let __result = __instance
                         .$map_method(|__rust_val, $owner| {
                             let ret = __rust_val.$method_name(
                                 OwnerArg::from_safe_ref($owner),
                                 $($pname,)*
                                 $($opt_pname,)*
                             );
-                            <$retty as $crate::core_types::OwnedToVariant>::owned_to_variant(ret)
-                        })
-                        .unwrap_or_else(|err| {
-                            $crate::godot_error!("gdnative-core: method call failed with error: {:?}", err);
-                            $crate::godot_error!("gdnative-core: check module level documentation on gdnative::user_data for more information");
-                            $crate::core_types::Variant::new()
+                            let ret = <$retty as $crate::core_types::OwnedToVariant>::owned_to_variant(ret);
+                            
+                            #[cfg(debug_assertions)]
+                            $crate::GodotResult::from_variant(&ret)
+                                .map(|res| res.map_err(|e| $crate::godot_error!("Script method returned an error: {}", e)));
+                            
+                            ret
                         });
+                    let __ret = __result.unwrap_or_else(|err| {
+                        $crate::godot_error!("gdnative-core: method call failed with error: {:?}", err);
+                        $crate::godot_error!("gdnative-core: check module level documentation on gdnative::user_data for more information");
+                        $crate::core_types::Variant::new()
+                    });
 
                     std::mem::drop(__instance);
 
